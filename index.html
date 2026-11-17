@@ -306,6 +306,9 @@ body.cursor{cursor:default}
   #start td{padding:3px 8px;font-size:13px}
   #start .nav{font-size:11px;line-height:1.5}
 }
+#start .sb-load{font-size:15px;font-weight:700;color:var(--orange);min-height:1em}
+#start .sb-load:empty{display:none}
+#start .sb-load.ok{color:#6fdc8c}
 #start tr[data-act]{cursor:pointer}
 #start tr[data-act]:hover td,#start tr[data-act]:active td{background:rgba(255,255,255,.08)}
 #start .fsnote{display:none;margin-left:6px;font-size:13px;color:#999}
@@ -415,8 +418,8 @@ html,body{touch-action:manipulation;-webkit-user-select:none;user-select:none;-w
     </div>
     <div class="media">
       <img class="mi m1p m1v on" id="ffPhoto" src="photos/firefighter.jpg" alt="">
-      <video class="mi m1 m1v" id="rescueVid" src="photos/rescue.mp4" muted playsinline webkit-playsinline preload="auto"></video>
-      <video class="mi m1b m1v" id="rescueVid2" src="photos/rescue2.mp4" muted playsinline webkit-playsinline preload="auto"></video>
+      <video class="mi m1 m1v" id="rescueVid" src="photos/rescue.mp4" muted playsinline webkit-playsinline preload="metadata"></video>
+      <video class="mi m1b m1v" id="rescueVid2" src="photos/rescue2.mp4" muted playsinline webkit-playsinline preload="metadata"></video>
       <img class="mi m2" src="photos/research.jpg" alt="">
       <img class="mi m3" src="photos/community.jpg" alt="">
       <div class="mlogos">
@@ -516,7 +519,7 @@ html,body{touch-action:manipulation;-webkit-user-select:none;user-select:none;-w
       </div>
       <div class="dxbar a wl" data-s="1" style="--d:.9s"></div>
     </div>
-    <div class="phone a zi" style="--d:.5s"><video id="dxVid" src="photos/bosai_palette.mp4" muted loop playsinline webkit-playsinline preload="auto"></video></div>
+    <div class="phone a zi" style="--d:.5s"><video id="dxVid" src="photos/bosai_palette.mp4" muted loop playsinline webkit-playsinline preload="metadata"></video></div>
   </section>
 
   <!-- 8: EVENT -->
@@ -594,6 +597,7 @@ html,body{touch-action:manipulation;-webkit-user-select:none;user-select:none;-w
     <div class="play"></div>
     <div class="go">クリック／タップで開始</div>
     <div class="sb-note">開始するまで、この画面で止まっています。キー、または項目をタップして準備してください</div>
+    <div class="sb-load" id="sbLoad"></div>
     <table>
       <tr data-act="f"><td>F</td><td>全画面<small class="fsnote">（iPhoneは共有 →「ホーム画面に追加」から開くと全画面）</small></td><td class="stt" data-k="fs"></td></tr>
       <tr data-act="h"><td>H</td><td>経過タイマー・進行バー</td><td class="stt" data-k="h"></td></tr>
@@ -713,15 +717,54 @@ html,body{touch-action:manipulation;-webkit-user-select:none;user-select:none;-w
     const p = v.play();
     // 再生できなかった場合（省電力モードなど）は次へ進む
     if (p) p.catch(() => { if (vidOn) i === 0 ? playVid(1) : endSeq(); });
+    clearTimeout(wdT); wdT = setTimeout(nextOf(i), 12000); // 読み込みで始まらない場合の保険
   }
-  vids[0].addEventListener('ended', () => { if (vidOn) playVid(1); });
-  vids[1].addEventListener('ended', () => { if (vidOn) endSeq(); });
+  let wdT = null; // 通信が遅くて動画が止まったままにならないよう、一定時間で次へ進める
+  const nextOf = i => () => { clearTimeout(wdT); if (vidOn) i === 0 ? playVid(1) : endSeq(); };
+  vids[0].addEventListener('ended', nextOf(0));
+  vids[1].addEventListener('ended', nextOf(1));
+  vids.forEach((v, i) => v.addEventListener('playing', () => {
+    clearTimeout(wdT); wdT = setTimeout(nextOf(i), ((v.duration || 6) - v.currentTime) * 1000 + 3000);
+  }));
   function startVids() {
     vidOn = true; clearTimeout(seqT); showM1(ffPhoto);
     vids.forEach(v => { v.pause(); v.currentTime = 0; });
     seqT = setTimeout(() => { if (vidOn) playVid(0); }, PHOTO_MS);
   }
-  function stopVids() { vidOn = false; clearTimeout(seqT); vids.forEach(v => v.pause()); }
+  function stopVids() { vidOn = false; clearTimeout(seqT); clearTimeout(wdT); vids.forEach(v => v.pause()); }
+
+  // ---------- 動画の先読み：待機中に全部ダウンロードして端末のメモリから再生（会場の通信が遅くても止まらない） ----------
+  const loadEl = document.getElementById('sbLoad');
+  const allVids = [...document.querySelectorAll('video')];
+  const got = new Map(), tot = new Map();
+  let loadDone = 0, loadFail = false;
+  function updLoad() {
+    if (!loadEl) return;
+    if (loadFail) { loadEl.textContent = ''; return; }
+    const g = [...got.values()].reduce((a, b) => a + b, 0), t = [...tot.values()].reduce((a, b) => a + b, 0);
+    if (loadDone === allVids.length) { loadEl.textContent = '✓ 動画の読み込み完了'; loadEl.classList.add('ok'); }
+    else loadEl.textContent = `動画を読み込み中… ${t ? Math.floor(g / t * 100) : 0}%（完了してから開始すると安心です）`;
+  }
+  async function preloadVid(v) {
+    const url = v.getAttribute('src');
+    const r = await fetch(url);
+    if (!r.ok || !r.body) throw new Error('fetch');
+    tot.set(v, +r.headers.get('content-length') || 0);
+    const reader = r.body.getReader(), chunks = [];
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value); got.set(v, (got.get(v) || 0) + value.length); updLoad();
+    }
+    const blobUrl = URL.createObjectURL(new Blob(chunks, { type: 'video/mp4' }));
+    const swap = () => { const ap = v.autoplay; v.src = blobUrl; v.load(); v.autoplay = ap; };
+    if (v.paused) swap(); else v.addEventListener('pause', swap, { once: true }); // 再生中なら止まったときに差し替え
+    loadDone++; updLoad();
+  }
+  if (location.protocol.startsWith('http')) {
+    updLoad();
+    Promise.all(allVids.map(v => preloadVid(v).catch(() => { loadFail = true; }))).then(updLoad);
+  }
 
   // ---------- scene hooks ----------
   const hooks = {
