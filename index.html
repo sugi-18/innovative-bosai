@@ -743,7 +743,7 @@ html,body{touch-action:manipulation;-webkit-user-select:none;user-select:none;-w
     if (loadFail) { loadEl.textContent = ''; return; }
     const g = [...got.values()].reduce((a, b) => a + b, 0), t = [...tot.values()].reduce((a, b) => a + b, 0);
     if (loadDone === allVids.length) { loadEl.textContent = '✓ 動画の読み込み完了'; loadEl.classList.add('ok'); }
-    else loadEl.textContent = `動画を読み込み中… ${t ? Math.floor(g / t * 100) : 0}%（完了してから開始すると安心です）`;
+    else loadEl.textContent = `動画を読み込み中…${tot.size === allVids.length && t ? ' ' + Math.floor(g / t * 100) + '%' : ''}（完了してから開始すると安心です）`;
   }
   async function preloadVid(v) {
     const url = v.getAttribute('src');
