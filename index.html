@@ -2,7 +2,12 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="イノベーティブ防災">
+<meta name="theme-color" content="#000000">
 <title>イノベーティブ・防災</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -107,6 +112,7 @@ body.cursor{cursor:default}
 .mi{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .9s}
 .m3{object-position:50% 35%}
 .m1{object-position:50% 22%}
+.m1p{object-position:50% 50%}
 .m1b{object-position:50% 31%;transform-origin:54% 50%;transform:scale(1.2)}
 /* 2本目：ロープで降りる隊員（約1.7秒で地上へ）を追いかけて表示位置を下げる */
 #rescueVid2.track{animation:track2 4.5s linear both}
@@ -291,6 +297,35 @@ body.cursor{cursor:default}
 #start .stt.on{color:var(--yellow)}
 #start .nav{font-size:14px;color:#999;text-align:center;line-height:1.7;margin-top:4px}
 #sub:empty{display:none}
+@media (max-height:640px){
+  #start .sb{gap:6px;padding:12px 22px 10px;max-height:96vh}
+  #start .play{width:44px;height:44px;border-width:2px}
+  #start .play::after{border-left-width:15px;border-top-width:10px;border-bottom-width:10px;margin-left:4px}
+  #start .go{font-size:17px}
+  #start .sb-note{font-size:12px}
+  #start td{padding:3px 8px;font-size:13px}
+  #start .nav{font-size:11px;line-height:1.5}
+}
+#start tr[data-act]{cursor:pointer}
+#start tr[data-act]:hover td,#start tr[data-act]:active td{background:rgba(255,255,255,.08)}
+#start .fsnote{display:none;margin-left:6px;font-size:13px;color:#999}
+.nofs #start .fsnote{display:inline}
+/* タッチ端末 */
+html,body{touch-action:manipulation;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;overscroll-behavior:none}
+#menu{position:fixed;inset:0;z-index:12;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.45);cursor:default}
+#menu.show{display:flex}
+#menu .mp{width:min(92vw,560px);padding:20px;border-radius:20px;background:rgba(14,15,20,.94);border:1px solid rgba(255,255,255,.14);display:flex;flex-direction:column;gap:12px}
+#menu .mrow,#menu .mgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+#menu .mgrid{grid-template-columns:1fr 1fr 1fr}
+#menu button{font:700 17px var(--sans);color:#fff;background:#232631;border:1px solid #3a3e4a;border-radius:12px;padding:14px 8px;cursor:pointer;line-height:1.4}
+#menu button:active{background:#343846}
+#menu button .stt{display:block;font:700 13px Consolas,monospace;color:#777}
+#menu button .stt.on{color:var(--yellow)}
+#menu .mrow:first-child button{font-size:20px;background:#3a2a10;border-color:#7a5a20}
+#menu .cl{background:transparent}
+#rotate{position:fixed;inset:0;z-index:20;display:none;align-items:center;justify-content:center;background:#000;color:#fff;text-align:center;font-size:20px;line-height:1.8}
+#rotate div{font-weight:700}
+@media (orientation:portrait) and (max-width:600px) and (pointer:coarse){#rotate{display:flex}}
 #sub{position:fixed;left:50%;bottom:3vh;transform:translateX(-50%);z-index:8;max-width:86vw;background:rgba(0,0,0,.78);padding:12px 24px;border-radius:10px;font-size:clamp(14px,1.6vw,28px);line-height:1.6;display:none;border-left:4px solid var(--yellow)}
 #sub.show{display:block}
 #hud{position:fixed;right:14px;top:10px;z-index:9;font:14px Consolas,monospace;color:#9aa;background:rgba(0,0,0,.6);padding:6px 12px;border-radius:6px;display:none}
@@ -379,8 +414,9 @@ body.cursor{cursor:default}
       </div></div>
     </div>
     <div class="media">
-      <video class="mi m1 m1v on" id="rescueVid" src="photos/rescue.mp4" muted playsinline preload="auto"></video>
-      <video class="mi m1b m1v" id="rescueVid2" src="photos/rescue2.mp4" muted playsinline preload="auto"></video>
+      <img class="mi m1p m1v on" id="ffPhoto" src="photos/firefighter.jpg" alt="">
+      <video class="mi m1 m1v" id="rescueVid" src="photos/rescue.mp4" muted playsinline webkit-playsinline preload="auto"></video>
+      <video class="mi m1b m1v" id="rescueVid2" src="photos/rescue2.mp4" muted playsinline webkit-playsinline preload="auto"></video>
       <img class="mi m2" src="photos/research.jpg" alt="">
       <img class="mi m3" src="photos/community.jpg" alt="">
       <div class="mlogos">
@@ -480,7 +516,7 @@ body.cursor{cursor:default}
       </div>
       <div class="dxbar a wl" data-s="1" style="--d:.9s"></div>
     </div>
-    <div class="phone a zi" style="--d:.5s"><video id="dxVid" src="photos/bosai_palette.mp4" muted loop playsinline preload="auto"></video></div>
+    <div class="phone a zi" style="--d:.5s"><video id="dxVid" src="photos/bosai_palette.mp4" muted loop playsinline webkit-playsinline preload="auto"></video></div>
   </section>
 
   <!-- 8: EVENT -->
@@ -556,20 +592,44 @@ body.cursor{cursor:default}
 <div id="start">
   <div class="sb">
     <div class="play"></div>
-    <div class="go">クリックで開始</div>
-    <div class="sb-note">開始するまで、この画面で止まっています。キーで準備してからクリックしてください</div>
+    <div class="go">クリック／タップで開始</div>
+    <div class="sb-note">開始するまで、この画面で止まっています。キー、または項目をタップして準備してください</div>
     <table>
-      <tr><td>F</td><td>全画面</td><td class="stt" data-k="fs"></td></tr>
-      <tr><td>H</td><td>経過タイマー・進行バー</td><td class="stt" data-k="h"></td></tr>
-      <tr><td>C</td><td>右下のクリック合図</td><td class="stt" data-k="c"></td></tr>
-      <tr><td>N</td><td>台本の字幕（リハーサル用）</td><td class="stt" data-k="n"></td></tr>
-      <tr><td>A</td><td>自動送りモード</td><td class="stt" data-k="a"></td></tr>
-      <tr><td>B</td><td>BGM（同じフォルダの bgm.mp3）</td><td class="stt" data-k="b"></td></tr>
-      <tr><td>G</td><td>この案内を隠す／出す（炎だけの待機画面）</td><td></td></tr>
+      <tr data-act="f"><td>F</td><td>全画面<small class="fsnote">（iPhoneは共有 →「ホーム画面に追加」から開くと全画面）</small></td><td class="stt" data-k="fs"></td></tr>
+      <tr data-act="h"><td>H</td><td>経過タイマー・進行バー</td><td class="stt" data-k="h"></td></tr>
+      <tr data-act="c"><td>C</td><td>右下のクリック合図</td><td class="stt" data-k="c"></td></tr>
+      <tr data-act="n"><td>N</td><td>台本の字幕（リハーサル用）</td><td class="stt" data-k="n"></td></tr>
+      <tr data-act="a"><td>A</td><td>自動送りモード</td><td class="stt" data-k="a"></td></tr>
+      <tr data-act="b"><td>B</td><td>BGM（同じフォルダの bgm.mp3）</td><td class="stt" data-k="b"></td></tr>
+      <tr data-act="g"><td>G</td><td>この案内を隠す（炎だけの待機画面。長押しで再表示）</td><td></td></tr>
     </table>
-    <div class="nav">開始：クリック ／ → ／ Space ／ リモコンの「次へ」<br>開始後：← ・右クリックで戻る　R ・ Home で最初から</div>
+    <div class="nav">開始後　次へ：クリック・→・Space・リモコン ／ タップ・左へスワイプ<br>戻る：←・右クリック ／ 右へスワイプ　　メニュー（設定・最初から）：M ／ 長押し</div>
   </div>
 </div>
+
+<!-- 開始後のメニュー（長押し または M キー） -->
+<div id="menu">
+  <div class="mp">
+    <div class="mrow">
+      <button data-act="prev">◀ 戻る</button>
+      <button data-act="next">次へ ▶</button>
+    </div>
+    <div class="mgrid">
+      <button data-act="f">全画面 <b class="stt" data-k="fs"></b></button>
+      <button data-act="h">タイマー <b class="stt" data-k="h"></b></button>
+      <button data-act="c">クリック合図 <b class="stt" data-k="c"></b></button>
+      <button data-act="n">字幕 <b class="stt" data-k="n"></b></button>
+      <button data-act="a">自動送り <b class="stt" data-k="a"></b></button>
+      <button data-act="b">BGM <b class="stt" data-k="b"></b></button>
+    </div>
+    <div class="mrow">
+      <button data-act="restart">最初から</button>
+      <button data-act="close" class="cl">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<div id="rotate"><div>📱↻<br>横向きにしてご覧ください</div></div>
 
 <script>
 (() => {
@@ -639,17 +699,29 @@ body.cursor{cursor:default}
   }
   let gridTimer = null;
 
-  // ---------- rescue videos (scene 1): 1本目 → 2本目 → 1本目… と交互に再生 ----------
+  // ---------- 消防職員 (scene 1): 写真 → 動画1 → 動画2 → 写真に戻って止まる（くり返さない） ----------
+  const ffPhoto = document.getElementById('ffPhoto');
   const vids = [document.getElementById('rescueVid'), document.getElementById('rescueVid2')];
-  let vidOn = false;
+  const PHOTO_MS = 5000;
+  let vidOn = false, seqT = null;
+  function showM1(el) { [ffPhoto, ...vids].forEach(e => e.classList.toggle('on', e === el)); }
+  function endSeq() { vidOn = false; showM1(ffPhoto); }
   function playVid(i) {
-    vids.forEach((v, k) => v.classList.toggle('on', k === i));
-    const v = vids[i]; v.currentTime = 0; v.play().catch(() => {});
+    const v = vids[i]; v.currentTime = 0;
+    showM1(v);
     if (i === 1) { v.classList.remove('track'); void v.offsetWidth; v.classList.add('track'); }
+    const p = v.play();
+    // 再生できなかった場合（省電力モードなど）は次へ進む
+    if (p) p.catch(() => { if (vidOn) i === 0 ? playVid(1) : endSeq(); });
   }
-  vids.forEach((v, i) => v.addEventListener('ended', () => { if (vidOn) playVid(1 - i); }));
-  function startVids() { vidOn = true; playVid(0); }
-  function stopVids() { vidOn = false; vids.forEach(v => v.pause()); }
+  vids[0].addEventListener('ended', () => { if (vidOn) playVid(1); });
+  vids[1].addEventListener('ended', () => { if (vidOn) endSeq(); });
+  function startVids() {
+    vidOn = true; clearTimeout(seqT); showM1(ffPhoto);
+    vids.forEach(v => { v.pause(); v.currentTime = 0; });
+    seqT = setTimeout(() => { if (vidOn) playVid(0); }, PHOTO_MS);
+  }
+  function stopVids() { vidOn = false; clearTimeout(seqT); vids.forEach(v => v.pause()); }
 
   // ---------- scene hooks ----------
   const hooks = {
@@ -674,7 +746,7 @@ body.cursor{cursor:default}
     },
     'sc-slam': () => { later(() => { shake(); flash('rgba(255,40,30,.35)'); }, 300 * SP); },
     'sc-turn': (st) => { if (st === 1) flash('#fff'); },
-    'sc-dx': (st) => { if (st === 0) { const v = document.getElementById('dxVid'); v.currentTime = 0; later(() => v.play().catch(() => {}), 700 * SP); } else if (document.getElementById('dxVid').paused) document.getElementById('dxVid').play().catch(() => {}); },
+    'sc-dx': (st) => { if (st === 0) { const v = document.getElementById('dxVid'); v.currentTime = 0; v.play().catch(() => {}); } else if (document.getElementById('dxVid').paused) document.getElementById('dxVid').play().catch(() => {}); },
     'sc-event': (st) => { if (st === 1) later(() => { flash('rgba(255,210,63,.35)'); shake(); }, 2350 * SP); },
     'sc-ideas': (st) => { if (st === 1) later(() => flash('rgba(255,226,122,.3)'), 350 * SP); },
     'sc-final': (st) => { if (st === 1) flash('#fff'); }
@@ -792,20 +864,60 @@ body.cursor{cursor:default}
     started = true; t0 = Date.now();
     startEl.style.display = 'none';
     if (bgmOn) bgm.play().catch(() => {});
+    // iPhone / iPad：タップの瞬間に全動画を一度再生→停止して、後から自動で再生できるようにする
+    document.querySelectorAll('video').forEach(v => {
+      const p = v.play(); if (p) p.then(() => { if (!v.classList.contains('on') || !vidOn) { v.pause(); v.currentTime = 0; } }).catch(() => {});
+    });
     go(0);
   }
   window.go = go; // debug
 
-  // 待機画面：設定の ON/OFF を表示
-  const startEl = document.getElementById('start');
+  // ---------- 全画面（iPad は webkit 版。iPhone は非対応 → ホーム画面に追加で全画面） ----------
+  const docEl = document.documentElement;
+  const canFS = !!(docEl.requestFullscreen || docEl.webkitRequestFullscreen);
+  const standalone = navigator.standalone === true || matchMedia('(display-mode: standalone)').matches;
+  const isFS = () => standalone || !!(document.fullscreenElement || document.webkitFullscreenElement);
+  if (!canFS && !standalone) docEl.classList.add('nofs');
+  function toggleFS() {
+    if (!(document.fullscreenElement || document.webkitFullscreenElement)) {
+      if (docEl.requestFullscreen) docEl.requestFullscreen().catch(() => {});
+      else if (docEl.webkitRequestFullscreen) docEl.webkitRequestFullscreen();
+    } else {
+      if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
+      else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+    }
+  }
+
+  // ---------- 設定の切り替え（キー・待機画面の項目・メニュー共通） ----------
+  const startEl = document.getElementById('start'), menu = document.getElementById('menu');
   function refreshStates() {
-    const st = { fs: !!document.fullscreenElement, h: hud.classList.contains('show'), c: cueOn,
+    const st = { fs: isFS(), h: hud.classList.contains('show'), c: cueOn,
                  n: sub.classList.contains('show'), a: auto, b: bgmOn };
-    startEl.querySelectorAll('.stt').forEach(el => {
-      const on = st[el.dataset.k]; el.textContent = on ? 'ON' : 'OFF'; el.classList.toggle('on', on);
+    document.querySelectorAll('.stt[data-k]').forEach(el => {
+      const on = st[el.dataset.k];
+      el.textContent = el.dataset.k === 'fs' && !canFS && !standalone ? '非対応' : on ? 'ON' : 'OFF';
+      el.classList.toggle('on', on);
     });
   }
+  function act(a) {
+    if (a === 'f') toggleFS();
+    else if (a === 'n') sub.classList.toggle('show');
+    else if (a === 'h') { hud.classList.toggle('show'); prog.classList.toggle('show'); document.body.classList.toggle('cursor'); }
+    else if (a === 'a') { auto = !auto; if (started) scheduleAuto(); }
+    else if (a === 'b') { bgmOn = !bgmOn; if (started) bgmOn ? bgm.play().catch(() => {}) : bgm.pause(); }
+    else if (a === 'c') { cueOn = !cueOn; if (started) updateCue(scenes[cur], step, false); }
+    else if (a === 'g') startEl.classList.toggle('bare');
+    else if (a === 'next') { closeMenu(); next(); }
+    else if (a === 'prev') { closeMenu(); prev(); }
+    else if (a === 'restart') { closeMenu(); t0 = Date.now(); go(0); }
+    else if (a === 'close') closeMenu();
+    refreshStates();
+    setTimeout(refreshStates, 300); // 全画面の切り替えは少し遅れて反映される
+  }
+  const openMenu = () => { refreshStates(); menu.classList.add('show'); };
+  const closeMenu = () => menu.classList.remove('show');
   document.addEventListener('fullscreenchange', refreshStates);
+  document.addEventListener('webkitfullscreenchange', refreshStates);
   refreshStates();
 
   const NEXT = ['ArrowRight', ' ', 'PageDown', 'Enter', 'ArrowDown'];
@@ -813,29 +925,63 @@ body.cursor{cursor:default}
   addEventListener('keydown', e => {
     const k = e.key, l = k.toLowerCase();
     // 設定キー（開始前の待機画面でも使える。押しても開始しない）
-    if (l === 'f') toggleFS();
-    else if (l === 'n') sub.classList.toggle('show');
-    else if (l === 'h') { hud.classList.toggle('show'); prog.classList.toggle('show'); document.body.classList.toggle('cursor'); }
-    else if (l === 'a') { auto = !auto; if (started) scheduleAuto(); }
-    else if (l === 'b') { bgmOn = !bgmOn; if (started) bgmOn ? bgm.play().catch(() => {}) : bgm.pause(); }
-    else if (l === 'c') { cueOn = !cueOn; if (started) updateCue(scenes[cur], step, false); }
+    if (['f', 'n', 'h', 'a', 'b', 'c'].includes(l)) act(l);
+    else if (k === 'Escape') closeMenu();
     else if (!started) {
-      if (l === 'g') startEl.classList.toggle('bare');
+      if (l === 'g') act('g');
       else if (NEXT.includes(k)) { e.preventDefault(); start(); }
     }
-    else if (NEXT.includes(k)) { e.preventDefault(); next(); }
-    else if (PREV.includes(k)) { e.preventDefault(); prev(); }
-    else if (l === 'r' || k === 'Home') { t0 = Date.now(); go(0); }
+    else if (l === 'm') menu.classList.contains('show') ? closeMenu() : openMenu();
+    else if (NEXT.includes(k)) { e.preventDefault(); closeMenu(); next(); }
+    else if (PREV.includes(k)) { e.preventDefault(); closeMenu(); prev(); }
+    else if (l === 'r' || k === 'Home') act('restart');
     else if (k === 'End') go(scenes.length - 1);
-    if (!started) refreshStates();
   });
-  function toggleFS() {
-    if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {});
-    else document.exitFullscreen();
-  }
-  startEl.addEventListener('click', e => { e.stopPropagation(); start(); });
-  addEventListener('click', () => { if (started) next(); });
-  addEventListener('contextmenu', e => { e.preventDefault(); if (started) prev(); });
+
+  // 待機画面：項目をタップ／クリック → 切り替え、それ以外 → 開始
+  startEl.addEventListener('click', e => {
+    e.stopPropagation();
+    if (Date.now() < lpUntil) return;
+    const row = e.target.closest('[data-act]');
+    if (row) act(row.dataset.act); else start();
+  });
+  // メニュー
+  menu.addEventListener('click', e => {
+    e.stopPropagation();
+    const b = e.target.closest('[data-act]');
+    if (b) act(b.dataset.act); else if (e.target === menu) closeMenu();
+  });
+
+  // ---------- マウス ----------
+  let lastTouch = 0, lpUntil = 0;
+  addEventListener('click', () => { if (started && Date.now() - lastTouch > 800 && !menu.classList.contains('show')) next(); });
+  addEventListener('contextmenu', e => { e.preventDefault(); if (started && Date.now() - lastTouch > 800) prev(); });
+
+  // ---------- タッチ（iPhone / iPad）：タップ・左スワイプ＝次へ、右スワイプ＝戻る、長押し＝メニュー ----------
+  let tX = 0, tY = 0, lpTimer = null, lpFired = false, tMoved = false;
+  addEventListener('touchstart', e => {
+    if (e.touches.length > 1) return;
+    const t = e.touches[0]; tX = t.clientX; tY = t.clientY; lpFired = false; tMoved = false;
+    clearTimeout(lpTimer);
+    if (menu.classList.contains('show')) return;
+    lpTimer = setTimeout(() => {
+      lpFired = true; lpUntil = Date.now() + 900;
+      if (started) openMenu(); else startEl.classList.toggle('bare');
+    }, 650);
+  }, { passive: true });
+  addEventListener('touchmove', e => {
+    const t = e.touches[0];
+    if (Math.hypot(t.clientX - tX, t.clientY - tY) > 12) { tMoved = true; clearTimeout(lpTimer); }
+  }, { passive: true });
+  addEventListener('touchend', e => {
+    clearTimeout(lpTimer); lastTouch = Date.now();
+    if (lpFired) { e.preventDefault(); return; }
+    if (!started || menu.classList.contains('show')) return; // 待機画面とメニューはボタンのクリックで処理
+    const t = e.changedTouches[0], dx = t.clientX - tX, dy = t.clientY - tY;
+    e.preventDefault();
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.3) dx < 0 ? next() : prev();
+    else if (!tMoved) next();
+  }, { passive: false });
 
   // ---------- fire background（炎・火の粉・煙） ----------
   const cv = document.getElementById('bg'), ctx = cv.getContext('2d');
@@ -843,7 +989,7 @@ body.cursor{cursor:default}
   const FS = 0.42;
   let W, H, FW, FH, dpr = 1, emberT = .45, ember = .45; // 待機画面の炎の強さ
   function rs() {
-    dpr = devicePixelRatio || 1;
+    dpr = Math.min(2, devicePixelRatio || 1); // スマホの高解像度画面で重くならないよう上限2
     W = cv.width = Math.round(innerWidth * dpr); H = cv.height = Math.round(innerHeight * dpr);
     FW = fc.width = Math.ceil(innerWidth * FS); FH = fc.height = Math.ceil(innerHeight * FS);
   }
