@@ -1044,6 +1044,95 @@ html,body{touch-action:manipulation;-webkit-user-select:none;user-select:none;-w
     else if (!tMoved) next();
   }, { passive: false });
 
+  // 断片化MP4（MediaRecorder の出力）→ 通常のMP4（シーク可能）に組み直す。再エンコードなし。映像1トラック想定。
+  function fmp4ToMp4(u8) {
+    const dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
+    const u32 = p => dv.getUint32(p), type = p => String.fromCharCode(u8[p + 4], u8[p + 5], u8[p + 6], u8[p + 7]);
+    const boxSize = p => { const s = u32(p); return s === 1 ? Number(dv.getBigUint64(p + 8)) : s === 0 ? u8.length - p : s; };
+    const children = (start, end) => { const out = []; let p = start; while (p + 8 <= end) { const s = boxSize(p); out.push({ p, s, t: type(p) }); p += s; } return out; };
+    const find = (list, t) => list.find(b => b.t === t);
+    const top = children(0, u8.length);
+    const moov = find(top, 'moov'); if (!moov) throw new Error('moov がありません');
+    const mk = children(moov.p + 8, moov.p + moov.s);
+    const trak = find(mk, 'trak'), mvhd = find(mk, 'mvhd'), mvex = find(mk, 'mvex');
+    const tk = children(trak.p + 8, trak.p + trak.s), tkhd = find(tk, 'tkhd'), mdia = find(tk, 'mdia');
+    const md = children(mdia.p + 8, mdia.p + mdia.s), mdhd = find(md, 'mdhd'), hdlr = find(md, 'hdlr'), minf = find(md, 'minf');
+    const mi = children(minf.p + 8, minf.p + minf.s);
+    const stbl = find(mi, 'stbl'), stsd = find(children(stbl.p + 8, stbl.p + stbl.s), 'stsd');
+    let trex = { dur: 0, size: 0, flags: 0 };
+    if (mvex) { const tx = find(children(mvex.p + 8, mvex.p + mvex.s), 'trex'); if (tx) trex = { dur: u32(tx.p + 20), size: u32(tx.p + 24), flags: u32(tx.p + 28) }; }
+    // サンプル収集
+    const S = { off: [], size: [], dur: [], cts: [], sync: [] }; let hasCts = false;
+    for (const mf of top.filter(b => b.t === 'moof')) {
+      for (const tf of children(mf.p + 8, mf.p + mf.s).filter(b => b.t === 'traf')) {
+        const tc = children(tf.p + 8, tf.p + tf.s), th = find(tc, 'tfhd');
+        const hf = u32(th.p + 8) & 0xffffff; let q = th.p + 16;
+        let base = mf.p, dDur = trex.dur, dSize = trex.size, dFlags = trex.flags;
+        if (hf & 1) { base = Number(dv.getBigUint64(q)); q += 8; }
+        if (hf & 2) q += 4;
+        if (hf & 8) { dDur = u32(q); q += 4; }
+        if (hf & 0x10) { dSize = u32(q); q += 4; }
+        if (hf & 0x20) { dFlags = u32(q); q += 4; }
+        for (const tr of tc.filter(b => b.t === 'trun')) {
+          const ver = u8[tr.p + 8], f = u32(tr.p + 8) & 0xffffff, n = u32(tr.p + 12); let r = tr.p + 16;
+          let off = base; if (f & 1) { off = base + dv.getInt32(r); r += 4; }
+          let first = null; if (f & 4) { first = u32(r); r += 4; }
+          for (let i = 0; i < n; i++) {
+            const d = f & 0x100 ? (r += 4, u32(r - 4)) : dDur;
+            const s = f & 0x200 ? (r += 4, u32(r - 4)) : dSize;
+            let fl = f & 0x400 ? (r += 4, u32(r - 4)) : dFlags; if (i === 0 && first !== null) fl = first;
+            let c = 0; if (f & 0x800) { c = ver ? dv.getInt32(r) : u32(r); r += 4; if (c) hasCts = true; }
+            S.off.push(off); S.size.push(s); S.dur.push(d); S.cts.push(c); S.sync.push(!((fl >> 16) & 1));
+            off += s;
+          }
+        }
+      }
+    }
+    const N = S.size.length; if (!N) throw new Error('サンプルがありません');
+    const total = S.dur.reduce((a, b) => a + b, 0);
+    // ボックス生成
+    const be = (n, bytes) => { const b = new Uint8Array(bytes); const v = new DataView(b.buffer, b.byteOffset, b.byteLength); if (bytes === 8) v.setBigUint64(0, BigInt(n)); else v.setUint32(0, n >>> 0); return b; };
+    const cat = arrs => { const len = arrs.reduce((a, b) => a + b.length, 0), o = new Uint8Array(len); let p = 0; for (const a of arrs) { o.set(a, p); p += a.length; } return o; };
+    const box = (t, ...parts) => { const body = cat(parts); return cat([be(8 + body.length, 4), new TextEncoder().encode(t), body]); };
+    const full = (t, vf, ...parts) => box(t, be(vf, 4), ...parts);
+    const copy = b => new Uint8Array(u8.subarray(b.p, b.p + b.s)); // 必ず独立したコピーを作る
+    const setDur = (b, tsOff0, durOff0, durOff1, val) => { // version に応じて duration を書き換え
+      const c = copy(b), v = new DataView(c.buffer, c.byteOffset, c.byteLength); if (c[8] === 1) v.setBigUint64(durOff1, BigInt(val)); else v.setUint32(durOff0, val); return c; };
+    const mdTs = u8[mdhd.p + 8] === 1 ? u32(mdhd.p + 28) : u32(mdhd.p + 20);
+    const mvTs = u8[mvhd.p + 8] === 1 ? u32(mvhd.p + 28) : u32(mvhd.p + 20);
+    const mvDur = Math.round(total * mvTs / mdTs);
+    // stts（同じ長さはまとめる）
+    const stts = []; for (let i = 0; i < N; i++) { const l = stts[stts.length - 1]; if (l && l[1] === S.dur[i]) l[0]++; else stts.push([1, S.dur[i]]); }
+    const ctts = []; if (hasCts) for (let i = 0; i < N; i++) { const l = ctts[ctts.length - 1]; if (l && l[1] === S.cts[i]) l[0]++; else ctts.push([1, S.cts[i]]); }
+    const syncIdx = []; S.sync.forEach((s, i) => s && syncIdx.push(i + 1));
+    const ints = a => { const b = new Uint8Array(a.length * 4), v = new DataView(b.buffer); a.forEach((x, i) => v.setUint32(i * 4, x >>> 0)); return b; };
+    const buildMoov = mdatData => {
+      const co = new Uint8Array(N * 8), cv = new DataView(co.buffer); let p = mdatData;
+      for (let i = 0; i < N; i++) { cv.setBigUint64(i * 8, BigInt(p)); p += S.size[i]; }
+      const stblN = box('stbl', copy(stsd),
+        full('stts', 0, be(stts.length, 4), ints(stts.flat())),
+        ...(hasCts ? [full('ctts', 0, be(ctts.length, 4), ints(ctts.flat()))] : []),
+        ...(syncIdx.length < N ? [full('stss', 0, be(syncIdx.length, 4), ints(syncIdx))] : []),
+        full('stsc', 0, be(1, 4), ints([1, 1, 1])),
+        full('stsz', 0, be(0, 4), be(N, 4), ints(S.size)),
+        full('co64', 0, be(N, 4), co));
+      const minfN = box('minf', ...mi.filter(b => b.t !== 'stbl').map(copy), stblN);
+      const mdiaN = box('mdia', setDur(mdhd, 20, 24, 32, total), copy(hdlr), minfN);
+      const trakN = box('trak', setDur(tkhd, 0, 28, 36, mvDur), mdiaN);
+      return box('moov', setDur(mvhd, 20, 24, 32, mvDur), trakN);
+    };
+    const ftyp = box('ftyp', new TextEncoder().encode('isom'), be(512, 4), new TextEncoder().encode('isomiso2avc1mp41'));
+    const mdatLen = S.size.reduce((a, b) => a + b, 0);
+    const mdatHdr = cat([be(1, 4), new TextEncoder().encode('mdat'), be(16 + mdatLen, 8)]);
+    const moovLen = buildMoov(0).length;
+    const moovF = buildMoov(ftyp.length + moovLen + mdatHdr.length);
+    // 連続するサンプルはまとめて切り出す
+    const parts = [ftyp, moovF, mdatHdr]; let st = S.off[0], en = st + S.size[0];
+    for (let i = 1; i < N; i++) { if (S.off[i] === en) en += S.size[i]; else { parts.push(u8.subarray(st, en)); st = S.off[i]; en = st + S.size[i]; } }
+    parts.push(u8.subarray(st, en));
+    return { parts, samples: N, seconds: total / mdTs, keyframes: syncIdx.length };
+  }
+
   // ---------- 録画モード（index.html?record）：自動送りで最初から最後まで流し、動画ファイルとして保存 ----------
   const qs = new URLSearchParams(location.search);
   if (qs.has('record')) {
@@ -1078,7 +1167,12 @@ html,body{touch-action:manipulation;-webkit-user-select:none;user-select:none;-w
       rec.onstop = async () => {
         stream.getTracks().forEach(t => t.stop()); src.srcObject = null;
         const ext = mime.includes('mp4') ? 'mp4' : 'webm';
-        const blob = new Blob(chunks, { type: mime.split(';')[0] || 'video/webm' });
+        let blob = new Blob(chunks, { type: mime.split(';')[0] || 'video/webm' });
+        // 録画直後のMP4は再生位置を動かせない形式なので、通常のMP4に組み直す（画質はそのまま）
+        if (ext === 'mp4') {
+          try { blob = new Blob(fmp4ToMp4(new Uint8Array(await blob.arrayBuffer())).parts, { type: 'video/mp4' }); }
+          catch (err) { console.warn('MP4の組み直しに失敗：', err); }
+        }
         const name = `イノベーティブ防災_自動再生.${ext}`;
         if (qs.get('record') === 'upload') {
           await fetch('/upload?name=' + encodeURIComponent(name), { method: 'POST', body: blob });
@@ -1087,7 +1181,8 @@ html,body{touch-action:manipulation;-webkit-user-select:none;user-select:none;-w
           const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click();
         }
       };
-      // 合図・タイマー・字幕は録画に映さない
+      // 再生設定の画面・合図・タイマー・字幕は録画に映さない
+      startEl.classList.add('bare'); startEl.style.cursor = 'none';
       cueOn = false; hud.classList.remove('show'); prog.classList.remove('show'); sub.classList.remove('show');
       document.getElementById('cue').classList.remove('show');
       await new Promise(r => setTimeout(r, 800));
