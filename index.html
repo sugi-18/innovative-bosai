@@ -137,7 +137,7 @@ body.cursor{cursor:default}
 .mlogos .lg-iwase{height:62px}
 .mlogos .lg-sl{width:120px;height:120px}
 #sc-intro[data-st="2"] .m2,#sc-intro[data-st="3"] .m3{animation:kb 16s linear both}
-@keyframes kb{from{transform:scale(1.02)}to{transform:scale(1.12)}}
+@keyframes kb{from{transform:scale(1.02)}to{transform:scale(1.15)}} /* ズーム量 +30%（10%→13%） */
 .tri{position:absolute;left:0;right:0;bottom:70px;text-align:center;font-size:52px;font-weight:900;letter-spacing:.2em}
 .tri em{font-style:normal;color:var(--red);margin:0 .4em}
 
@@ -390,7 +390,7 @@ html,body{touch-action:manipulation;-webkit-user-select:none;user-select:none;-w
   </section>
 
   <!-- 1: INTRO -->
-  <section class="scene" id="sc-intro" data-auto="8,14,9,18" data-ember=".25">
+  <section class="scene" id="sc-intro" data-auto="8,30,9,18" data-ember=".25">
     <div class="nb-center">
       <div class="a fi en en-name" style="--d:.2s">TAKAYA SUGIYAMA</div>
       <div class="a fu name" style="--d:.4s">杉山 貴哉</div>
@@ -716,7 +716,12 @@ html,body{touch-action:manipulation;-webkit-user-select:none;user-select:none;-w
   const PHOTO_MS = 5000;
   let vidOn = false, seqT = null;
   function showM1(el) { [ffPhoto, ...vids].forEach(e => e.classList.toggle('on', e === el)); }
-  function endSeq() { vidOn = false; showM1(ffPhoto); }
+  function endSeq() {
+    vidOn = false;
+    // 自動送り中は、2本目の動画が終わったらそのまま「東京大学」へ（写真には戻さない）
+    if (auto && scenes[cur] && scenes[cur].id === 'sc-intro' && step === 1) next();
+    else showM1(ffPhoto);
+  }
   function playVid(i) {
     const v = vids[i]; v.currentTime = 0;
     showM1(v);
@@ -1038,6 +1043,55 @@ html,body{touch-action:manipulation;-webkit-user-select:none;user-select:none;-w
     if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.3) dx < 0 ? next() : prev();
     else if (!tMoved) next();
   }, { passive: false });
+
+  // ---------- 録画モード（index.html?record）：自動送りで最初から最後まで流し、動画ファイルとして保存 ----------
+  const qs = new URLSearchParams(location.search);
+  if (qs.has('record')) {
+    const go2 = startEl.querySelector('.go'), note = startEl.querySelector('.sb-note');
+    go2.textContent = '録画モード：クリックで録画開始';
+    note.textContent = '共有する画面で「このタブ」を選ぶと、自動送りで最初から最後まで流して動画ファイルに保存します（約5分）';
+    let recording = false;
+    startEl.addEventListener('click', async e => {
+      e.stopImmediatePropagation();
+      if (recording) return; recording = true;
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getDisplayMedia({
+          video: { frameRate: 30, width: 1920, height: 1080, displaySurface: 'browser' },
+          audio: false, preferCurrentTab: true, selfBrowserSurface: 'include' });
+      } catch (err) { recording = false; note.textContent = '録画を開始できませんでした：' + err.message; return; }
+      const types = ['video/mp4;codecs=avc1.640028', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm'];
+      const mime = types.find(t => MediaRecorder.isTypeSupported(t)) || '';
+      const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 8e6 });
+      const chunks = []; rec.ondataavailable = ev => ev.data.size && chunks.push(ev.data);
+      rec.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop());
+        const ext = mime.includes('mp4') ? 'mp4' : 'webm';
+        const blob = new Blob(chunks, { type: mime.split(';')[0] || 'video/webm' });
+        const name = `イノベーティブ防災_自動再生.${ext}`;
+        if (qs.get('record') === 'upload') {
+          await fetch('/upload?name=' + encodeURIComponent(name), { method: 'POST', body: blob });
+          document.title = 'RECORD-DONE ' + name;
+        } else {
+          const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click();
+        }
+      };
+      // 合図・タイマー・字幕は録画に映さない
+      cueOn = false; hud.classList.remove('show'); prog.classList.remove('show'); sub.classList.remove('show');
+      document.getElementById('cue').classList.remove('show');
+      await new Promise(r => setTimeout(r, 800));
+      rec.start(1000);
+      await new Promise(r => setTimeout(r, 1500)); // 冒頭に少し炎だけの間
+      auto = true; start(); cueOn = false;
+      // 最後の画面がすべて出てから少し置いて録画終了
+      const HOLD = 14000; let endAt = 0;
+      const chk = setInterval(() => {
+        const last = cur === scenes.length - 1 && step === stepsOf(scenes[cur]) - 1;
+        if (last && !endAt) endAt = Date.now() + HOLD;
+        if (endAt && Date.now() > endAt) { clearInterval(chk); rec.stop(); }
+      }, 250);
+    }, true);
+  }
 
   // ---------- fire background（炎・火の粉・煙） ----------
   const cv = document.getElementById('bg'), ctx = cv.getContext('2d');
