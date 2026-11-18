@@ -1057,15 +1057,26 @@ html,body{touch-action:manipulation;-webkit-user-select:none;user-select:none;-w
       let stream;
       try {
         stream = await navigator.mediaDevices.getDisplayMedia({
-          video: { frameRate: 30, width: 1920, height: 1080, displaySurface: 'browser' },
+          video: { frameRate: 30, displaySurface: 'browser' },
           audio: false, preferCurrentTab: true, selfBrowserSurface: 'include' });
       } catch (err) { recording = false; note.textContent = '録画を開始できませんでした：' + err.message; return; }
+      const track = stream.getVideoTracks()[0];
+      // 1920x1080 ちょうどで記録（はみ出す分は切り取り）
+      await track.applyConstraints({ width: 1920, height: 1080, frameRate: 30, resizeMode: 'crop-and-scale' }).catch(() => {});
+      window._recSettings = JSON.stringify(track.getSettings());
       const types = ['video/mp4;codecs=avc1.640028', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm'];
       const mime = types.find(t => MediaRecorder.isTypeSupported(t)) || '';
-      const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 8e6 });
+      // 取り込んだ画面を 1920x1080 のキャンバスに描き直して記録（端末によってサイズがずれないように）
+      const src = document.createElement('video'); src.srcObject = stream; src.muted = true; await src.play();
+      const cvs = document.createElement('canvas'); cvs.width = 1920; cvs.height = 1080;
+      const cx = cvs.getContext('2d');
+      const draw = () => { cx.drawImage(src, 0, 0, 1920, 1080); if (src.srcObject) src.requestVideoFrameCallback(draw); };
+      src.requestVideoFrameCallback(draw);
+      window._recSrc = src.videoWidth + 'x' + src.videoHeight;
+      const rec = new MediaRecorder(cvs.captureStream(30), { mimeType: mime, videoBitsPerSecond: 12e6 });
       const chunks = []; rec.ondataavailable = ev => ev.data.size && chunks.push(ev.data);
       rec.onstop = async () => {
-        stream.getTracks().forEach(t => t.stop());
+        stream.getTracks().forEach(t => t.stop()); src.srcObject = null;
         const ext = mime.includes('mp4') ? 'mp4' : 'webm';
         const blob = new Blob(chunks, { type: mime.split(';')[0] || 'video/webm' });
         const name = `イノベーティブ防災_自動再生.${ext}`;
@@ -1080,7 +1091,7 @@ html,body{touch-action:manipulation;-webkit-user-select:none;user-select:none;-w
       cueOn = false; hud.classList.remove('show'); prog.classList.remove('show'); sub.classList.remove('show');
       document.getElementById('cue').classList.remove('show');
       await new Promise(r => setTimeout(r, 800));
-      rec.start(1000);
+      rec.start(1000); const recT0 = performance.now();
       await new Promise(r => setTimeout(r, 1500)); // 冒頭に少し炎だけの間
       auto = true; start(); cueOn = false;
       // 最後の画面がすべて出てから少し置いて録画終了
@@ -1088,7 +1099,7 @@ html,body{touch-action:manipulation;-webkit-user-select:none;user-select:none;-w
       const chk = setInterval(() => {
         const last = cur === scenes.length - 1 && step === stepsOf(scenes[cur]) - 1;
         if (last && !endAt) endAt = Date.now() + HOLD;
-        if (endAt && Date.now() > endAt) { clearInterval(chk); rec.stop(); }
+        if ((endAt && Date.now() > endAt) || (qs.get('sec') && rec.state === 'recording' && performance.now() - recT0 > +qs.get('sec') * 1000)) { clearInterval(chk); rec.stop(); }
       }, 250);
     }, true);
   }
